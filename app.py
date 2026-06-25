@@ -560,13 +560,20 @@ def enrich_work_data(work: Dict) -> Dict:
                 'score': concept.get('score', 0)
             })
     
+    # Get DOI safely - FIXED
+    doi = work.get('doi', '')
+    if doi is None:
+        doi = ''
+    else:
+        doi = str(doi).replace('https://doi.org/', '')
+    
     return {
         'id': work.get('id', ''),
         'title': clean_text(work.get('title', '')),
         'publication_year': work.get('publication_year', 0),
         'cited_by_count': work.get('cited_by_count', 0),
         'relevance_score': work.get('relevance_score', 0),
-        'doi': work.get('doi', '').replace('https://doi.org/', ''),
+        'doi': doi,
         'source_id': source.get('id', '') if source else '',
         'source_name': source.get('display_name', '') if source else '',
         'source_issn': issns,
