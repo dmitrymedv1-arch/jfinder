@@ -297,16 +297,20 @@ def get_journal_metrics(journal_name: str, issns: List[str], jcr_data: Optional[
     if not jcr_data:
         return {'if': 0.0, 'quartile': 'N/A'}
     
+    # Ensure issns is a list
+    if issns is None:
+        issns = []
+    
     best_if = 0.0
     best_quartile = 'N/A'
     
     for issn in issns:
         if issn and issn in jcr_data:
             data = jcr_data[issn]
-            if data['if'] > best_if:
-                best_if = data['if']
-            if quartile_is_better(data['quartile'], best_quartile):
-                best_quartile = data['quartile']
+            if data.get('if', 0) > best_if:
+                best_if = data.get('if', 0)
+            if quartile_is_better(data.get('quartile', 'N/A'), best_quartile):
+                best_quartile = data.get('quartile', 'N/A')
     
     return {'if': best_if, 'quartile': best_quartile}
 
@@ -542,11 +546,13 @@ def enrich_work_data(work: Dict) -> Dict:
                 if inst.get('country_code'):
                     countries.add(inst['country_code'])
     
-    # Extract ISSNs
+    # Extract ISSNs - FIXED: handle None
     issns = []
     if source:
-        issn_list = source.get('issn', [])
-        if isinstance(issn_list, list):
+        issn_list = source.get('issn')
+        if issn_list is None:
+            issns = []
+        elif isinstance(issn_list, list):
             issns = issn_list
         elif isinstance(issn_list, str):
             issns = [issn_list]
@@ -554,13 +560,13 @@ def enrich_work_data(work: Dict) -> Dict:
     # Extract concepts
     concepts = []
     for concept in work.get('concepts', [])[:5]:
-        if concept.get('display_name'):
+        if concept and concept.get('display_name'):
             concepts.append({
                 'name': concept['display_name'],
                 'score': concept.get('score', 0)
             })
     
-    # Get DOI safely - FIXED
+    # Get DOI safely
     doi = work.get('doi', '')
     if doi is None:
         doi = ''
@@ -662,20 +668,28 @@ def analyze_journals(works: List[Dict], min_papers: int = 3) -> Dict:
         for w in works_list:
             all_countries.update(w.get('countries', []))
         
-        # Concepts
+        # Concepts - FIXED: handle None values
         all_concepts = Counter()
         for w in works_list:
-            for concept in w.get('concepts', []):
-                all_concepts[concept['name']] += 1
+            concepts = w.get('concepts', [])
+            if concepts:
+                for concept in concepts:
+                    if concept and concept.get('name'):
+                        all_concepts[concept['name']] += 1
         
         # Get ISSNs
         issns = source_meta.get('issn', [])
-        if not issns:
+        if not issns or issns is None:
+            issns = []
             # Try to get from works
             for w in works_list:
                 if w.get('source_issn'):
                     issns = w['source_issn']
                     break
+        
+        # Ensure issns is a list
+        if issns is None:
+            issns = []
         
         # Get JCR metrics
         jcr_data = st.session_state.get('jcr_data', None)
@@ -713,7 +727,7 @@ def analyze_journals(works: List[Dict], min_papers: int = 3) -> Dict:
         }
     
     return journal_data
-
+    
 def calculate_composite_score(journal: Dict) -> float:
     """Calculate composite score for ranking"""
     # Normalize metrics
